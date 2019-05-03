@@ -326,7 +326,132 @@ impl<T> Uarte<T> where T: Instance {
     pub fn free(self) -> T {
         self.0
     }
+
+    pub fn split(self) -> (UarteRX<T>, UarteTX<T>) {
+        let rx = UarteRX::<T>::new();
+        let tx = UarteTX::<T>::new();
+
+        (rx, tx)
+    }
 }
+
+
+pub struct UarteRX<T> {
+    _marker: core::marker::PhantomData<T>,
+}
+
+
+impl<T> UarteRX<T> 
+    where T: Instance
+{
+    fn new() -> Self {
+        Self{ _marker: core::marker::PhantomData }
+    }
+
+    pub fn begin_read<'a>(&'a self, buffer: &'a mut [u8]) -> Option<ReadHandle<'a, T>> {
+        // Return None if another ReadHandle has already enabled the ENDRX_STARTRX short
+        // else
+        // load up the RXD.PTR and RXD.MAXCNT registers
+        // If reception is already in progress then enable the ENDRX_STARTRX short, otherwise trigger the STARTRX event.
+        Some(ReadHandle{ rx: self, buffer })
+    }
+}
+
+
+pub struct ReadHandle<'a, T: Instance> {
+    rx: &'a UarteRX<T>,
+    buffer: &'a mut [u8],
+}
+
+
+impl<'a, T> ReadHandle<'a, T>
+    where T: Instance
+{
+    /// Returns None if transfer hasn't finished yet, otherwise return the number of bytes read
+    pub fn bytes_read(&self) -> Option<usize> {
+        None
+    }
+
+    pub fn cancel(&mut self) {
+        // If this hasn't been started yet then disable the ENDRX_STARTRX short.
+        // If this is the targer of an ongoing DMA transfer then cancel it and wait.
+        // If the transfer has already finished then do nothing
+    }
+
+    // This would require separate lifetimes for self.rx and self.buffer
+    // pub fn release(self) -> &'a mut [u8] {
+    //     self.cancel();
+    //     self.buffer
+    // }
+}
+
+
+impl<'a, T> Drop for ReadHandle<'a, T>
+    where T: Instance
+{
+    fn drop(&mut self) {
+        self.cancel();
+    }
+}
+
+
+pub struct UarteTX<T> {
+    _marker: core::marker::PhantomData<T>,
+}
+
+
+impl<T> UarteTX<T> 
+    where T:Instance
+{
+    fn new() -> Self {
+        Self{ _marker: core::marker::PhantomData }
+    }
+
+    pub fn begin_write<'a>(&'a self, buffer: &'a [u8]) -> Option<WriteHandle<'a, T>> {
+        // If a transmission is in progress then return None
+        // else
+        // Load up the TXD.PTR and TXD.MAXCNT registers and trigger the STARTTX event.
+        Some(WriteHandle{ tx: self, buffer })
+    }
+}
+
+
+pub struct WriteHandle<'a, T: Instance> {
+    tx: &'a UarteTX<T>,
+    buffer: &'a [u8],
+}
+
+
+impl<'a, T> WriteHandle<'a, T>
+    where T: Instance
+{
+    /// Returns None if the transfer hasn't finished yet, else returns the number of bytes transmitted
+    pub fn bytes_written(&self) -> Option<usize> {
+        None
+    }
+
+    pub fn cancel(&mut self) {
+        // If this is the target of a DMA transfer then cancel it and wait.
+        // If the transfer has already finished then do nothing
+    }
+
+    // This would require separate lifetimes for self.tx and self.buffer
+    // pub fn release(self) -> &'a [u8] {
+    //     self.cancel();
+    //     self.buffer
+    // }
+}
+
+
+impl<'a, T> Drop for WriteHandle<'a, T>
+    where T: Instance
+{
+    fn drop(&mut self) {
+        self.cancel();
+    }
+}
+
+
 
 impl<T> fmt::Write for Uarte<T> where T: Instance {
     fn write_str(&mut self, s: &str) -> fmt::Result {
